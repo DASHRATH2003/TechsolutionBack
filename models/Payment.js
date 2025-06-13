@@ -1,6 +1,4 @@
 import mongoose from 'mongoose';
-import Payment from '../models/Payment.js';
-
 
 const paymentSchema = new mongoose.Schema({
   orderId: {
@@ -41,5 +39,4 @@ const paymentSchema = new mongoose.Schema({
   }
 });
 
-const Payment = mongoose.model('Payment', paymentSchema);
-export default Payment; 
+export default mongoose.model('Payment', paymentSchema);

@@ -5,6 +5,8 @@ import Payment from '../models/Payment.js';
 
 const router = express.Router();
 
+// Rest of your payment route code remains the same...
+
 // Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
