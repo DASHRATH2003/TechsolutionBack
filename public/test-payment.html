@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Test Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+            margin-top: 50px;
+        }
+        button {
+            background-color: #3395ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2874c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Razorpay Test Payment</h1>
+        <p>Click the button below to test a payment of ₹100</p>
+        <button onclick="makePayment()">Pay Now</button>
+    </div>
+
+    <script>
+        async function makePayment() {
+            try {
+                // Create order
+                const response = await fetch('http://localhost:5000/api/payment/demo-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create order');
+                }
+
+                // Initialize Razorpay
+                const options = {
+                    key: 'rzp_test_QV9SfOLROu5Gli', // Your Razorpay key
+                    amount: data.order.amount,
+                    currency: data.order.currency,
+                    order_id: data.order.id,
+                    name: 'Test Company',
+                    description: 'Test Payment',
+                    handler: function (response) {
+                        alert('Payment successful! Payment ID: ' + response.razorpay_payment_id);
+                    },
+                    prefill: {
+                        name: 'Test User',
+                        email: 'test@example.com',
+                        contact: '9999999999'
+                    },
+                    theme: {
+                        color: '#3395ff'
+                    }
+                };
+
+                const rzp = new Razorpay(options);
+                rzp.open();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html> 

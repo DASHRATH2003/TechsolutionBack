@@ -5,13 +5,15 @@ import Payment from '../models/Payment.js';
 
 const router = express.Router();
 
-// Rest of your payment route code remains the same...
-
-// Initialize Razorpay
+// Initialize Razorpay with direct keys
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
+  key_id: 'rzp_test_QV9SfOLROu5Gli',
+  key_secret: 'rs8eUJQpzRrL62XFWGP6unNm'
 });
+
+// Debug environment variables
+console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID);
+console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
 
 // Handle preflight requests
 router.options('*', (req, res) => {
@@ -27,8 +29,18 @@ router.post('/create-order', async (req, res) => {
   try {
     const { amount, currency = 'INR', customer } = req.body;
 
+    // Ensure amount is a number and convert to paise
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+    
+    if (isNaN(amountInPaise) || amountInPaise <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid amount'
+      });
+    }
+
     const options = {
-      amount: amount * 100, // Razorpay expects amount in paise
+      amount: amountInPaise,
       currency,
       receipt: `receipt_${Date.now()}`,
     };
@@ -38,7 +50,7 @@ router.post('/create-order', async (req, res) => {
     // Create payment record in database
     const payment = new Payment({
       orderId: order.id,
-      amount: amount,
+      amount: amount, // Store original amount in rupees
       currency,
       customer,
       status: 'created'
@@ -49,7 +61,7 @@ router.post('/create-order', async (req, res) => {
       success: true,
       order: {
         id: order.id,
-        amount: order.amount,
+        amount: amountInPaise, // Send amount in paise to frontend
         currency: order.currency
       }
     });
@@ -57,7 +69,7 @@ router.post('/create-order', async (req, res) => {
     console.error('Error creating order:', error);
     res.status(500).json({
       success: false,
-      error: 'Error creating order'
+      error: error.message || 'Error creating order'
     });
   }
 });
@@ -170,6 +182,34 @@ router.post('/webhook', (req, res) => {
   } catch (error) {
     console.error('Webhook error:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Demo test endpoint
+router.post('/demo-order', async (req, res) => {
+  try {
+    const options = {
+      amount: 100 * 100, // ₹100 in paise
+      currency: 'INR',
+      receipt: `demo_receipt_${Date.now()}`,
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency
+      }
+    });
+  } catch (error) {
+    console.error('Error creating demo order:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
