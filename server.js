@@ -25,7 +25,7 @@ app.use(cors({
     'http://localhost:3001',
     'http://localhost:5173',
     'http://localhost:5175',
-    'https://techsolution-gamma.vercel.app',
+    'https://techsolution-sr1g.vercel.app',
     'https://techsolutionback.onrender.com'
   ],
   credentials: true,
