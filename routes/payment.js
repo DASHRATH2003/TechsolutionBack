@@ -5,10 +5,10 @@ import Payment from '../models/Payment.js';
 
 const router = express.Router();
 
-// Initialize Razorpay with direct keys
+// Initialize Razorpay with environment variables
 const razorpay = new Razorpay({
-  key_id: 'rzp_test_QV9SfOLROu5Gli',
-  key_secret: 'rs8eUJQpzRrL62XFWGP6unNm'
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
 // Debug environment variables
