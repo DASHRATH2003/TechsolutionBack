@@ -2,26 +2,35 @@ import express from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import Payment from '../models/Payment.js';
+import dotenv from 'dotenv';
+
+// Ensure environment variables are loaded
+dotenv.config();
 
 const router = express.Router();
 
-// Initialize Razorpay with environment variables
+// Debug environment variables
+console.log('Payment Route - Environment Variables Check:');
+console.log('RAZORPAY_KEY_ID exists:', !!process.env.RAZORPAY_KEY_ID);
+console.log('RAZORPAY_KEY_SECRET exists:', !!process.env.RAZORPAY_KEY_SECRET);
+
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  console.error('Missing Razorpay credentials in environment variables');
+}
+
+// Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-// Debug environment variables
-console.log('RAZORPAY_KEY_ID:', process.env.RAZORPAY_KEY_ID);
-console.log('RAZORPAY_KEY_SECRET:', process.env.RAZORPAY_KEY_SECRET);
-
-// Handle preflight requests
-router.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept');
-  res.header('Access-Control-Allow-Credentials', true);
-  res.sendStatus(200);
+// Test endpoint to verify Razorpay initialization
+router.get('/test', (req, res) => {
+  res.json({
+    message: 'Payment routes are working!',
+    timestamp: new Date().toISOString(),
+    razorpayInitialized: !!razorpay
+  });
 });
 
 // Create a new order
@@ -29,31 +38,32 @@ router.post('/create-order', async (req, res) => {
   try {
     const { amount, currency = 'INR', customer } = req.body;
 
-    // Ensure amount is a number and convert to paise
-    const amountInPaise = Math.round(parseFloat(amount) * 100);
-    
-    if (isNaN(amountInPaise) || amountInPaise <= 0) {
+    if (!amount || isNaN(amount)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid amount'
       });
     }
 
+    // Convert amount to paise (Razorpay expects amount in smallest currency unit)
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+
     const options = {
       amount: amountInPaise,
       currency,
-      receipt: `receipt_${Date.now()}`,
+      receipt: `receipt_${Date.now()}`
     };
 
     const order = await razorpay.orders.create(options);
 
-    // Create payment record in database
+    // Store order details in database
     const payment = new Payment({
       orderId: order.id,
-      amount: amount, // Store original amount in rupees
+      amount: amount,
       currency,
       customer,
-      status: 'created'
+      status: 'created',
+      razorpayOrderId: order.id
     });
     await payment.save();
 
@@ -61,7 +71,7 @@ router.post('/create-order', async (req, res) => {
       success: true,
       order: {
         id: order.id,
-        amount: amountInPaise, // Send amount in paise to frontend
+        amount: amountInPaise,
         currency: order.currency
       }
     });
@@ -74,7 +84,7 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-// Verify payment
+// Verify payment signature
 router.post('/verify', async (req, res) => {
   try {
     const {
@@ -83,8 +93,7 @@ router.post('/verify', async (req, res) => {
       razorpay_signature
     } = req.body;
 
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
@@ -93,7 +102,7 @@ router.post('/verify', async (req, res) => {
     const isAuthentic = expectedSignature === razorpay_signature;
 
     if (isAuthentic) {
-      // Update payment record
+      // Update payment status in database
       await Payment.findOneAndUpdate(
         { razorpayOrderId: razorpay_order_id },
         {
@@ -110,14 +119,14 @@ router.post('/verify', async (req, res) => {
     } else {
       res.status(400).json({
         success: false,
-        message: 'Invalid signature'
+        error: 'Invalid payment signature'
       });
     }
   } catch (error) {
     console.error('Error verifying payment:', error);
     res.status(500).json({
       success: false,
-      error: 'Error verifying payment'
+      error: error.message || 'Error verifying payment'
     });
   }
 });
@@ -211,21 +220,6 @@ router.post('/demo-order', async (req, res) => {
       error: error.message
     });
   }
-});
-
-// Test endpoint to check if payment routes are working
-router.get('/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Payment routes are working!',
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      'POST /api/payment/create-order': 'Create a new payment order',
-      'POST /api/payment/verify': 'Verify payment signature',
-      'GET /api/payment/status/:orderId': 'Get payment status',
-      'POST /api/payment/webhook': 'Handle Razorpay webhooks'
-    }
-  });
 });
 
 export default router;
